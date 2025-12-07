@@ -9,12 +9,20 @@ import time
 import webbrowser
 import subprocess
 from pathlib import Path
+import logging
 
 # Configurações
 DOCKER_CONTAINER = "teleprompter-app"
 DOCKER_PORT = 3000
 LOCAL_URL = f"http://localhost:{DOCKER_PORT}"
 CHECK_TIMEOUT = 30  # segundos para aguardar container iniciar
+
+# Setup logging (em vez de print)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(message)s',
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 def is_container_running():
     """Verifica se o container Docker está rodando"""
@@ -27,7 +35,7 @@ def is_container_running():
         )
         return bool(result.stdout.strip())
     except Exception as e:
-        print(f"Erro ao verificar Docker: {e}")
+        logging.error(f"Erro ao verificar Docker: {e}")
         return False
 
 def is_port_open(port=DOCKER_PORT, timeout=2):
@@ -46,10 +54,10 @@ def is_port_open(port=DOCKER_PORT, timeout=2):
 def start_container():
     """Inicia o container Docker se não estiver rodando"""
     if is_container_running():
-        print("✓ Container já está rodando")
+        logging.info("✓ Container já está rodando")
         return True
     
-    print("🐳 Iniciando container Docker...")
+    logging.info("🐳 Iniciando container Docker...")
     try:
         # Tenta rodar com docker-compose se existir
         compose_path = Path(__file__).parent / "docker-compose.yml"
@@ -68,72 +76,76 @@ def start_container():
             )
         
         # Aguarda container estar pronto
-        print("⏳ Aguardando app iniciar...", end="", flush=True)
+        logging.info("⏳ Aguardando app iniciar...", end="", flush=True)
         start_time = time.time()
         while time.time() - start_time < CHECK_TIMEOUT:
             if is_port_open():
-                print(" ✓")
+                logging.info(" ✓")
                 return True
-            print(".", end="", flush=True)
+            logging.info(".", end="", flush=True)
             time.sleep(1)
         
-        print(" ✗")
-        print("⚠ Timeout esperando container iniciar")
+        logging.info(" ✗")
+        logging.warning("⚠ Timeout esperando container iniciar")
         return False
     except Exception as e:
-        print(f"✗ Erro ao iniciar container: {e}")
+        logging.error(f"✗ Erro ao iniciar container: {e}")
         return False
 
 def open_app():
     """Abre a app no navegador"""
-    print(f"🌐 Abrindo app em {LOCAL_URL}")
+    logging.info(f"🌐 Abrindo app em {LOCAL_URL}")
     webbrowser.open(LOCAL_URL)
 
 def main():
     """Fluxo principal"""
-    print("=" * 50)
-    print("📺 Teleprompter App")
-    print("=" * 50)
+    logging.info("=" * 50)
+    logging.info("📺 Teleprompter App")
+    logging.info("=" * 50)
     
     # Verifica se Docker está instalado
     try:
-        subprocess.run(["docker", "--version"], capture_output=True, timeout=5)
+        subprocess.run(["docker", "--version"], capture_output=True, timeout=5, check=True)
     except Exception:
-        print("✗ Docker não está instalado ou não está no PATH")
-        print("  Baixe em: https://www.docker.com/products/docker-desktop")
-        input("\nPressione Enter para sair...")
+        logging.error("✗ Docker não está instalado ou não está no PATH")
+        logging.error("  Baixe em: https://www.docker.com/products/docker-desktop")
+        time.sleep(3)
         return 1
     
     # Inicia container
     if not start_container():
-        print("\n✗ Falha ao iniciar container Docker")
-        input("Pressione Enter para sair...")
+        logging.error("\n✗ Falha ao iniciar container Docker")
+        time.sleep(3)
         return 1
     
     # Aguarda porta ficar pronta
-    print("⏳ Verificando se a app está pronta...", end="", flush=True)
+    logging.info("⏳ Verificando se a app está pronta...", end="", flush=True)
     start_time = time.time()
     while time.time() - start_time < 10:
         if is_port_open():
-            print(" ✓")
+            logging.info(" ✓")
             break
-        print(".", end="", flush=True)
+        logging.info(".", end="", flush=True)
         time.sleep(0.5)
     
     # Abre no navegador
     open_app()
     
-    print("\n✓ App aberta! Você pode fechar este terminal.")
-    print(f"  URL: {LOCAL_URL}")
-    print("\n  Para parar a app, execute:")
-    print("  docker-compose down  (ou)")
-    print("  docker stop teleprompter-app")
+    logging.info("\n✓ App aberta! Você pode fechar este terminal.")
+    logging.info(f"  URL: {LOCAL_URL}")
+    logging.info("\n  Para parar a app, execute no PowerShell:")
+    logging.info("  docker-compose down")
     
+    time.sleep(2)
     return 0
 
 if __name__ == "__main__":
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        print("\n\n👋 Encerrando...")
+        logging.info("\n\n👋 Encerrando...")
         sys.exit(0)
+    except Exception as e:
+        logging.error(f"\n❌ Erro inesperado: {e}")
+        time.sleep(3)
+        sys.exit(1)
